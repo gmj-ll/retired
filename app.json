@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "退休倒计时",
+    "slug": "retirement-countdown",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.retirementcountdown.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "此应用需要访问您的照片库来设置背景图片",
+        "NSCameraUsageDescription": "此应用需要访问相机来拍摄背景图片"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "sdkVersion": "54.0.0",
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "此应用需要访问您的照片库来设置背景图片",
+          "cameraPermission": "此应用需要访问相机来拍摄背景图片"
+        }
+      ]
+    ]
+  }
+}
