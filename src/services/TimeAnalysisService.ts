@@ -100,22 +100,17 @@ export class TimeAnalysisService {
   }
 
   /**
-   * 计算职业生涯总时间分配
+   * 基于历史数据计算职业生涯总时间分配
    */
-  static calculateCareerTimeDistribution(
+  static calculateCareerTimeDistributionFromHistory(
     userProfile: UserProfile,
-    averageSchedule?: {
-      averageWorkHours: number;
-      averageSleepHours: number;
-      averageFreeHours: number;
-    }
+    historicalRecords: any[] // DailyTimeRecord[]
   ) {
-    // 计算工作年限 - 确保日期对象有效
+    // 计算工作年限
     let workStartDate: Date;
     if (userProfile.workStartDate && userProfile.workStartDate instanceof Date && !isNaN(userProfile.workStartDate.getTime())) {
       workStartDate = userProfile.workStartDate;
     } else {
-      // 如果没有工作开始日期或日期无效，默认为22岁开始工作
       workStartDate = new Date(
         userProfile.birthDate.getFullYear() + 22,
         userProfile.birthDate.getMonth(),
@@ -124,39 +119,90 @@ export class TimeAnalysisService {
     }
     
     const retirementDate = new Date(userProfile.retirementDate);
-    const workingDays = Math.max(0, Math.floor((retirementDate.getTime() - workStartDate.getTime()) / (1000 * 60 * 60 * 24)));
-
-    // 使用平均值或默认值
-    const avgWork = averageSchedule?.averageWorkHours || 8;
-    const avgSleep = averageSchedule?.averageSleepHours || 8;
-    const avgFree = averageSchedule?.averageFreeHours || 8;
-
-    // 计算总时间
-    const totalWorkHours = avgWork * workingDays;
-    const totalSleepHours = avgSleep * workingDays;
-    const totalFreeHours = avgFree * workingDays;
-    const totalHours = totalWorkHours + totalSleepHours + totalFreeHours;
-
-    // 计算当前进度
     const now = new Date();
-    const timeWorked = Math.max(0, now.getTime() - workStartDate.getTime());
-    const totalWorkTime = retirementDate.getTime() - workStartDate.getTime();
-    const currentProgress = Math.min((timeWorked / totalWorkTime) * 100, 100);
-
+    
+    // 计算总工作天数和已工作天数
+    const totalWorkingDays = Math.max(0, Math.floor((retirementDate.getTime() - workStartDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const workedDays = Math.max(0, Math.floor((now.getTime() - workStartDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const remainingDays = Math.max(0, totalWorkingDays - workedDays);
+    
+    // 计算历史数据的累计时间
+    let totalHistoricalWork = 0;
+    let totalHistoricalSleep = 0;
+    let totalHistoricalFree = 0;
+    let historicalDaysCount = historicalRecords.length;
+    
+    historicalRecords.forEach(record => {
+      totalHistoricalWork += record.timeData.work.hours;
+      totalHistoricalSleep += record.timeData.sleep.hours;
+      totalHistoricalFree += record.timeData.free.hours;
+    });
+    
+    // 计算历史数据的平均值（用于预估剩余时间）
+    const avgWorkHours = historicalDaysCount > 0 ? totalHistoricalWork / historicalDaysCount : 8;
+    const avgSleepHours = historicalDaysCount > 0 ? totalHistoricalSleep / historicalDaysCount : 8;
+    const avgFreeHours = historicalDaysCount > 0 ? totalHistoricalFree / historicalDaysCount : 8;
+    
+    // 计算从工作开始到今天的实际已花费时间（使用平均值）
+    const actualWorkedDays = Math.min(workedDays, Math.max(0, Math.floor((now.getTime() - workStartDate.getTime()) / (1000 * 60 * 60 * 24))));
+    const spentWorkHours = avgWorkHours * actualWorkedDays;
+    const spentSleepHours = avgSleepHours * actualWorkedDays;
+    const spentFreeHours = avgFreeHours * actualWorkedDays;
+    
+    // 计算剩余时间的预估
+    const estimatedRemainingWork = avgWorkHours * remainingDays;
+    const estimatedRemainingSleep = avgSleepHours * remainingDays;
+    const estimatedRemainingFree = avgFreeHours * remainingDays;
+    
+    // 计算总时间（已花费 + 预估剩余）
+    const totalWork = spentWorkHours + estimatedRemainingWork;
+    const totalSleep = spentSleepHours + estimatedRemainingSleep;
+    const totalFree = spentFreeHours + estimatedRemainingFree;
+    const grandTotal = totalWork + totalSleep + totalFree;
+    
     return {
-      totalWork: {
-        hours: totalWorkHours,
-        percentage: (totalWorkHours / totalHours) * 100
+      // 已花费的时间（从工作开始到今天，基于平均值计算）
+      spentWork: {
+        hours: spentWorkHours,
+        percentage: grandTotal > 0 ? (spentWorkHours / grandTotal) * 100 : 0
       },
-      totalSleep: {
-        hours: totalSleepHours,
-        percentage: (totalSleepHours / totalHours) * 100
+      spentSleep: {
+        hours: spentSleepHours,
+        percentage: grandTotal > 0 ? (spentSleepHours / grandTotal) * 100 : 0
       },
-      totalFree: {
-        hours: totalFreeHours,
-        percentage: (totalFreeHours / totalHours) * 100
+      spentFree: {
+        hours: spentFreeHours,
+        percentage: grandTotal > 0 ? (spentFreeHours / grandTotal) * 100 : 0
       },
-      currentProgress
+      // 剩余时间（预估）
+      remainingWork: {
+        hours: estimatedRemainingWork,
+        percentage: grandTotal > 0 ? (estimatedRemainingWork / grandTotal) * 100 : 0
+      },
+      remainingSleep: {
+        hours: estimatedRemainingSleep,
+        percentage: grandTotal > 0 ? (estimatedRemainingSleep / grandTotal) * 100 : 0
+      },
+      remainingFree: {
+        hours: estimatedRemainingFree,
+        percentage: grandTotal > 0 ? (estimatedRemainingFree / grandTotal) * 100 : 0
+      },
+      // 剩余未度过的时间
+      unspentTime: {
+        hours: estimatedRemainingWork + estimatedRemainingSleep + estimatedRemainingFree,
+        percentage: grandTotal > 0 ? ((estimatedRemainingWork + estimatedRemainingSleep + estimatedRemainingFree) / grandTotal) * 100 : 0
+      },
+      // 统计信息
+      totalDays: totalWorkingDays,
+      workedDays: actualWorkedDays, // 从工作开始到今天的实际天数
+      remainingDays,
+      historicalDaysCount, // 实际有记录的天数
+      // 平均值（用于显示预估）
+      averages: {
+        work: avgWorkHours,
+        sleep: avgSleepHours,
+        free: avgFreeHours
+      }
     };
   }
 

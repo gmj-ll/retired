@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { TimeAnalysisService } from '@/services/TimeAnalysisService';
+import { WidgetService } from '@/services/WidgetService';
 import { safeFormatDate } from '@/utils/dateUtils';
 import { ImagePickerService } from '@/services/ImagePickerService';
 
@@ -38,12 +39,32 @@ export const HomeScreen: React.FC = () => {
     ImagePickerService.showImagePickerOptions(async (uri: string) => {
       try {
         await updateProfile({ profileImage: uri });
+        // 更新Widget数据
+        if (profile) {
+          await WidgetService.updateWidgetData(profile, currentFormat);
+        }
       } catch (error) {
         console.error('更新背景图片失败:', error);
         Alert.alert('错误', '更新背景图片失败，请重试');
       }
     });
   };
+
+  // 处理格式切换
+  const handleFormatChange = async (newFormat: TimeFormat) => {
+    setCurrentFormat(newFormat);
+    // 更新Widget数据
+    if (profile) {
+      await WidgetService.updateWidgetData(profile, newFormat);
+    }
+  };
+
+  // 初始化Widget数据
+  useEffect(() => {
+    if (profile && WidgetService.isWidgetAvailable()) {
+      WidgetService.updateWidgetData(profile, currentFormat);
+    }
+  }, [profile]);
 
   // 更新倒计时
   useEffect(() => {
@@ -111,7 +132,7 @@ export const HomeScreen: React.FC = () => {
             onPress={() => {
               const currentIndex = TIME_FORMATS.findIndex(f => f.key === currentFormat);
               const nextIndex = (currentIndex + 1) % TIME_FORMATS.length;
-              setCurrentFormat(TIME_FORMATS[nextIndex].key);
+              handleFormatChange(TIME_FORMATS[nextIndex].key);
             }}
             onLongPress={handleChangeBackground}
             activeOpacity={0.9}
@@ -187,7 +208,7 @@ export const HomeScreen: React.FC = () => {
                 styles.formatButton,
                 currentFormat === format.key && styles.activeFormatButton
               ]}
-              onPress={() => setCurrentFormat(format.key)}
+              onPress={() => handleFormatChange(format.key)}
             >
               <Text style={[
                 styles.formatButtonText,

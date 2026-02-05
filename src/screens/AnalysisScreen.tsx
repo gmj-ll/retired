@@ -26,6 +26,7 @@ export const AnalysisScreen: React.FC = () => {
   const [timeUnit, setTimeUnit] = useState<'years' | 'months' | 'days' | 'hours'>('years');
   const [isDragging, setIsDragging] = useState(false);
   const [showHistoryCalendar, setShowHistoryCalendar] = useState(false);
+  const [timeRecords, setTimeRecords] = useState<any[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // 昨日时间数据状态
@@ -50,6 +51,10 @@ export const AnalysisScreen: React.FC = () => {
         if (savedYesterdayData) {
           setYesterdayTimeData(savedYesterdayData);
         }
+        
+        // 加载历史记录用于职业生涯分析
+        const records = await TimeDataStorageService.getAllTimeRecords();
+        setTimeRecords(records);
       } catch (error) {
         console.error('初始化数据失败:', error);
       }
@@ -65,6 +70,27 @@ export const AnalysisScreen: React.FC = () => {
     try {
       // 保存昨日时间数据
       await TimeDataStorageService.saveYesterdayTimeData(newTimeData);
+      
+      // 立即检查是否需要保存到历史记录（如果是新的一天）
+      const yesterdayDateStr = TimeDataStorageService.getYesterdayDateString();
+      const existingRecord = await TimeDataStorageService.getTimeRecordByDate(yesterdayDateStr);
+      
+      if (!existingRecord) {
+        // 如果昨天还没有记录，立即保存
+        const record = {
+          date: yesterdayDateStr,
+          timeData: newTimeData,
+          timestamp: Date.now()
+        };
+        await TimeDataStorageService.saveTimeRecord(record);
+        
+        // 重新加载历史记录
+        const updatedRecords = await TimeDataStorageService.getAllTimeRecords();
+        setTimeRecords(updatedRecords);
+        
+        console.log('昨日时间数据已保存到历史记录:', yesterdayDateStr);
+      }
+      
       console.log('昨日时间分配已更新:', newTimeData);
     } catch (error) {
       console.error('保存昨日时间数据失败:', error);
@@ -86,6 +112,68 @@ export const AnalysisScreen: React.FC = () => {
     setShowHistoryCalendar(false);
   };
 
+  // 生成测试数据
+  const generateTestData = async () => {
+    try {
+      const testRecords = [];
+      const today = new Date();
+      
+      // 生成过去30天的测试数据
+      for (let i = 1; i <= 30; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // 根据是否为周末生成不同的数据
+        const isWeekend = TimeAnalysisService.isWeekend(date);
+        
+        let timeData;
+        if (isWeekend) {
+          // 周末：工作时间少，自由时间多
+          timeData = {
+            work: { hours: Math.random() * 2, percentage: 0 },
+            sleep: { hours: 7 + Math.random() * 2, percentage: 0 },
+            free: { hours: 0, percentage: 0 }
+          };
+        } else {
+          // 工作日：正常工作时间
+          timeData = {
+            work: { hours: 7 + Math.random() * 3, percentage: 0 },
+            sleep: { hours: 6 + Math.random() * 3, percentage: 0 },
+            free: { hours: 0, percentage: 0 }
+          };
+        }
+        
+        // 计算自由时间和百分比
+        timeData.free.hours = 24 - timeData.work.hours - timeData.sleep.hours;
+        timeData.work.percentage = (timeData.work.hours / 24) * 100;
+        timeData.sleep.percentage = (timeData.sleep.hours / 24) * 100;
+        timeData.free.percentage = (timeData.free.hours / 24) * 100;
+        
+        const record = {
+          date: dateStr,
+          timeData,
+          timestamp: Date.now() - (i * 24 * 60 * 60 * 1000)
+        };
+        
+        testRecords.push(record);
+      }
+      
+      // 保存测试数据
+      for (const record of testRecords) {
+        await TimeDataStorageService.saveTimeRecord(record);
+      }
+      
+      // 重新加载数据
+      const updatedRecords = await TimeDataStorageService.getAllTimeRecords();
+      setTimeRecords(updatedRecords);
+      
+      console.log('测试数据生成完成，共', testRecords.length, '条记录');
+    } catch (error) {
+      console.error('生成测试数据失败:', error);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -103,14 +191,14 @@ export const AnalysisScreen: React.FC = () => {
   }
   
   // 计算职业生涯数据
-  const careerTimeData = TimeAnalysisService.calculateCareerTimeDistribution(
+  const careerTimeData = profile ? TimeAnalysisService.calculateCareerTimeDistributionFromHistory(
     profile,
-    {
-      averageWorkHours: yesterdayTimeData.work.hours,
-      averageSleepHours: yesterdayTimeData.sleep.hours,
-      averageFreeHours: yesterdayTimeData.free.hours,
-    }
-  );
+    timeRecords
+  ) : null;
+
+  // 添加调试信息
+  console.log('timeRecords:', timeRecords.length, 'records');
+  console.log('careerTimeData:', careerTimeData);
 
   return (
     <View style={styles.container}>
@@ -167,56 +255,46 @@ export const AnalysisScreen: React.FC = () => {
 
             {/* 职业生涯圆环页面 */}
             <View style={styles.page}>
-              <View style={styles.pageHeader}>
-                <Text style={styles.pageTitle}>职业生涯分析</Text>
-                <Text style={styles.pageSubtitle}>从工作到退休的时间分配预测</Text>
-              </View>
-              
-              <TimeUnitSelector
-                selectedUnit={timeUnit}
-                onUnitChange={(unit) => {
-                  if (unit !== 'minutes') {
-                    setTimeUnit(unit);
-                  }
-                }}
-                availableUnits={['years', 'months', 'days', 'hours']}
-              />
-              
-              <View style={styles.ringContainer}>
-                <CareerRing 
-                  timeData={careerTimeData} 
-                  timeUnit={timeUnit}
+              <ScrollView 
+                style={styles.careerPageScroll}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.careerPageContent}
+              >
+                <View style={styles.pageHeader}>
+                  <Text style={styles.pageTitle}>职业生涯分析</Text>
+                  <Text style={styles.pageSubtitle}>从工作到退休的时间分配预测</Text>
+                </View>
+                
+                <TimeUnitSelector
+                  selectedUnit={timeUnit}
+                  onUnitChange={(unit) => {
+                    if (unit !== 'minutes') {
+                      setTimeUnit(unit);
+                    }
+                  }}
+                  availableUnits={['years', 'months', 'days', 'hours']}
                 />
-              </View>
-              
-              <View style={styles.progressContainer}>
-                <Text style={styles.progressTitle}>职业生涯进度</Text>
-                <View style={styles.progressBar}>
-                  <View 
-                    style={[
-                      styles.progressFill, 
-                      { width: `${careerTimeData.currentProgress}%` }
-                    ]} 
-                  />
+                
+                <View style={styles.ringContainer}>
+                  {careerTimeData ? (
+                    <CareerRing 
+                      timeData={careerTimeData} 
+                      timeUnit={timeUnit}
+                    />
+                  ) : (
+                    <View style={styles.noDataContainer}>
+                      <Text style={styles.noDataText}>暂无历史数据</Text>
+                      <Text style={styles.noDataSubtext}>开始记录您的时间分配来查看职业生涯分析</Text>
+                      <TouchableOpacity 
+                        style={styles.generateDataButton}
+                        onPress={generateTestData}
+                      >
+                        <Text style={styles.generateDataButtonText}>生成测试数据</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
-                <Text style={styles.progressText}>
-                  {careerTimeData.currentProgress.toFixed(1)}% 完成
-                </Text>
-              </View>
-              
-              <View style={styles.insightContainer}>
-                <View style={styles.insightHeader}>
-                  <Ionicons name="bulb-outline" size={20} color="#FF9500" />
-                  <Text style={styles.insightTitle}>时间洞察</Text>
-                </View>
-                <Text style={styles.insightText}>
-                  基于当前的时间分配模式，您在整个职业生涯中将拥有{' '}
-                  {timeUnit === 'years' 
-                    ? `${(careerTimeData.totalFree.hours / (24 * 365)).toFixed(1)}年` 
-                    : `${Math.floor(careerTimeData.totalFree.hours / 24)}天`
-                  }的自由时间。
-                </Text>
-              </View>
+              </ScrollView>
             </View>
           </ScrollView>
       
@@ -279,6 +357,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 60, // 为右上角按钮留出空间
   },
+  careerPageScroll: {
+    flex: 1,
+  },
+  careerPageContent: {
+    paddingBottom: 40, // 为底部留出空间
+  },
   pageHeader: {
     alignItems: 'center',
     paddingVertical: 20,
@@ -318,58 +402,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
-  progressContainer: {
-    paddingVertical: 20,
+  noDataContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
   },
-  progressTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
-  },
-  progressBar: {
-    width: '80%',
-    height: 8,
-    backgroundColor: '#E5E5E5',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 14,
+  noDataText: {
+    fontSize: 18,
     color: '#666',
-    marginTop: 8,
+    marginBottom: 8,
   },
-  insightContainer: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 20,
+  noDataSubtext: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+  generateDataButton: {
     marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
-  insightHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  insightTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginLeft: 8,
-  },
-  insightText: {
+  generateDataButtonText: {
+    color: 'white',
     fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+    fontWeight: '600',
   },
 });

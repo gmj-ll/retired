@@ -59,9 +59,9 @@ export const DailyRing: React.FC<DailyRingProps> = ({
   const strokeWidth = size * 0.08;
 
   // 计算角度（每个时间段有独立的起始位置）
-  const freeAngle = (timeData.free.percentage / 100) * 360;
-  const workAngle = (timeData.work.percentage / 100) * 360;
-  const sleepAngle = (timeData.sleep.percentage / 100) * 360;
+  const freeAngle = Math.max(0, (timeData.free.percentage / 100) * 360);
+  const workAngle = Math.max(0, (timeData.work.percentage / 100) * 360);
+  const sleepAngle = Math.max(0, (timeData.sleep.percentage / 100) * 360);
 
   // 使用独立的起始位置
   const freeStart = segmentPositions.freeStart;
@@ -163,10 +163,54 @@ export const DailyRing: React.FC<DailyRingProps> = ({
     return diff;
   };
 
-  // 限制拖拽角度，允许最小值为0
+  // 限制拖拽角度，确保不超过邻近的拖拽点
   const constrainDragAngle = (boundaryIndex: number, dragAngle: number) => {
-    // 允许任何时间段为0，不设置最小角度限制
-    return dragAngle;
+    // 获取当前所有边界点的角度
+    const currentBoundaries = [
+      (freeStart + freeAngle) % 360, // free-work边界
+      (workStart + workAngle) % 360, // work-sleep边界
+      (sleepStart + sleepAngle) % 360  // sleep-free边界
+    ];
+    
+    // 计算角度差（考虑360度循环）
+    const getAngleDiff = (angle1: number, angle2: number) => {
+      let diff = angle2 - angle1;
+      if (diff > 180) diff -= 360;
+      if (diff < -180) diff += 360;
+      return diff;
+    };
+    
+    // 获取相邻边界点的角度
+    const getPrevBoundary = (index: number) => currentBoundaries[(index + 2) % 3];
+    const getNextBoundary = (index: number) => currentBoundaries[(index + 1) % 3];
+    
+    const prevBoundary = getPrevBoundary(boundaryIndex);
+    const nextBoundary = getNextBoundary(boundaryIndex);
+    
+    // 计算允许的角度范围
+    let minAngle = prevBoundary;
+    let maxAngle = nextBoundary;
+    
+    // 处理跨越0度的情况
+    if (getAngleDiff(prevBoundary, nextBoundary) < 0) {
+      // 如果下一个边界在前一个边界之前（跨越0度）
+      if (dragAngle >= prevBoundary || dragAngle <= nextBoundary) {
+        return dragAngle; // 在有效范围内
+      }
+      // 选择最近的边界
+      const distToPrev = Math.abs(getAngleDiff(dragAngle, prevBoundary));
+      const distToNext = Math.abs(getAngleDiff(dragAngle, nextBoundary));
+      return distToPrev < distToNext ? prevBoundary : nextBoundary;
+    } else {
+      // 正常情况，确保在前一个和下一个边界之间
+      if (dragAngle >= minAngle && dragAngle <= maxAngle) {
+        return dragAngle;
+      }
+      // 限制在边界范围内
+      const distToPrev = Math.abs(getAngleDiff(dragAngle, minAngle));
+      const distToNext = Math.abs(getAngleDiff(dragAngle, maxAngle));
+      return distToPrev < distToNext ? minAngle : maxAngle;
+    }
   };
 
   // 调整时间分配（混合方案）
@@ -196,12 +240,12 @@ export const DailyRing: React.FC<DailyRingProps> = ({
           
           // 保持睡眠时间不变，工作时间调整
           const originalSleepAngle = sleepAngle;
-          const newWorkAngle = 360 - newFreeAngle - originalSleepAngle;
+          const newWorkAngle = Math.max(0, 360 - newFreeAngle - originalSleepAngle);
           
           // 更新时间数据
-          newTimeData.free.percentage = (newFreeAngle / 360) * 100;
-          newTimeData.work.percentage = (newWorkAngle / 360) * 100;
-          newTimeData.sleep.percentage = (originalSleepAngle / 360) * 100;
+          newTimeData.free.percentage = Math.max(0, (newFreeAngle / 360) * 100);
+          newTimeData.work.percentage = Math.max(0, (newWorkAngle / 360) * 100);
+          newTimeData.sleep.percentage = Math.max(0, (originalSleepAngle / 360) * 100);
         }
         break;
         
@@ -223,12 +267,12 @@ export const DailyRing: React.FC<DailyRingProps> = ({
           
           // 保持自由时间不变，睡眠时间调整
           const originalFreeAngle = freeAngle;
-          const newSleepAngle = 360 - originalFreeAngle - newWorkAngle;
+          const newSleepAngle = Math.max(0, 360 - originalFreeAngle - newWorkAngle);
           
           // 更新时间数据
-          newTimeData.free.percentage = (originalFreeAngle / 360) * 100;
-          newTimeData.work.percentage = (newWorkAngle / 360) * 100;
-          newTimeData.sleep.percentage = (newSleepAngle / 360) * 100;
+          newTimeData.free.percentage = Math.max(0, (originalFreeAngle / 360) * 100);
+          newTimeData.work.percentage = Math.max(0, (newWorkAngle / 360) * 100);
+          newTimeData.sleep.percentage = Math.max(0, (newSleepAngle / 360) * 100);
         }
         break;
         
@@ -250,20 +294,20 @@ export const DailyRing: React.FC<DailyRingProps> = ({
           
           // 保持工作时间不变，自由时间调整
           const originalWorkAngle = workAngle;
-          const newFreeAngle = 360 - originalWorkAngle - newSleepAngle;
+          const newFreeAngle = Math.max(0, 360 - originalWorkAngle - newSleepAngle);
           
           // 更新时间数据
-          newTimeData.free.percentage = (newFreeAngle / 360) * 100;
-          newTimeData.work.percentage = (originalWorkAngle / 360) * 100;
-          newTimeData.sleep.percentage = (newSleepAngle / 360) * 100;
+          newTimeData.free.percentage = Math.max(0, (newFreeAngle / 360) * 100);
+          newTimeData.work.percentage = Math.max(0, (originalWorkAngle / 360) * 100);
+          newTimeData.sleep.percentage = Math.max(0, (newSleepAngle / 360) * 100);
         }
         break;
     }
     
     // 更新小时数
-    newTimeData.work.hours = (newTimeData.work.percentage / 100) * 24;
-    newTimeData.sleep.hours = (newTimeData.sleep.percentage / 100) * 24;
-    newTimeData.free.hours = (newTimeData.free.percentage / 100) * 24;
+    newTimeData.work.hours = Math.max(0, (newTimeData.work.percentage / 100) * 24);
+    newTimeData.sleep.hours = Math.max(0, (newTimeData.sleep.percentage / 100) * 24);
+    newTimeData.free.hours = Math.max(0, (newTimeData.free.percentage / 100) * 24);
     
     // 更新位置
     setSegmentPositions(newPositions);
@@ -346,8 +390,21 @@ export const DailyRing: React.FC<DailyRingProps> = ({
   const workPath = describeArc(center, center, radius, workStart, workStart + workAngle);
   const sleepPath = describeArc(center, center, radius, sleepStart, sleepStart + sleepAngle);
 
-  // 计算自由时间弧的完整路径
-  const freePath = freeAngle > 0 ? describeArc(center, center, radius, freeStart, freeStart + freeAngle) : '';
+  // 将自由时间弧分成两部分：与工作衔接的部分需要置于最上层
+  const freeWorkConnectionAngle = 15; // 与工作衔接的部分角度
+  const freeMainEnd = Math.max(freeStart, (freeStart + freeAngle - freeWorkConnectionAngle + 360) % 360);
+  const freeConnectionStart = freeMainEnd;
+  const freeConnectionEnd = (freeStart + freeAngle + 360) % 360;
+
+  // 自由时间弧的主要部分（不包括与工作衔接的部分）
+  const freeMainPath = freeAngle > freeWorkConnectionAngle 
+    ? describeArc(center, center, radius, freeStart, freeMainEnd)
+    : '';
+
+  // 自由时间弧与工作衔接的部分（需要置于最上层）
+  const freeConnectionPath = freeAngle > 0 && freeAngle >= freeWorkConnectionAngle
+    ? describeArc(center, center, radius, freeConnectionStart, freeConnectionEnd)
+    : (freeAngle > 0 ? describeArc(center, center, radius, freeStart, freeStart + freeAngle) : '');
 
   return (
     <View style={styles.outerContainer}>
@@ -364,10 +421,10 @@ export const DailyRing: React.FC<DailyRingProps> = ({
               fill="none"
             />
             
-            {/* 自由时间弧 - 最下层 */}
-            {freeAngle > 0 && (
+            {/* 自由时间弧主要部分 - 最下层 */}
+            {freeAngle > 0 && freeMainPath && (
               <Path
-                d={freePath}
+                d={freeMainPath}
                 stroke={colors.free}
                 strokeWidth={strokeWidth}
                 fill="none"
@@ -393,6 +450,18 @@ export const DailyRing: React.FC<DailyRingProps> = ({
               <Path
                 d={workPath}
                 stroke={colors.work}
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+                opacity={1}
+              />
+            )}
+            
+            {/* 自由时间弧与工作衔接部分 - 最上层 */}
+            {freeAngle > 0 && freeConnectionPath && (
+              <Path
+                d={freeConnectionPath}
+                stroke={colors.free}
                 strokeWidth={strokeWidth}
                 fill="none"
                 strokeLinecap="round"

@@ -1,12 +1,29 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Circle, Path, G, Polygon } from 'react-native-svg';
+import Svg, { Circle, Path, G } from 'react-native-svg';
 
 interface CareerTimeData {
-  totalWork: { hours: number; percentage: number };
-  totalSleep: { hours: number; percentage: number };
-  totalFree: { hours: number; percentage: number };
-  currentProgress: number; // 0-100 百分比
+  // 已花费的时间（历史数据）
+  spentWork: { hours: number; percentage: number };
+  spentSleep: { hours: number; percentage: number };
+  spentFree: { hours: number; percentage: number };
+  // 剩余时间（预估）
+  remainingWork: { hours: number; percentage: number };
+  remainingSleep: { hours: number; percentage: number };
+  remainingFree: { hours: number; percentage: number };
+  // 剩余未度过的时间
+  unspentTime: { hours: number; percentage: number };
+  // 统计信息
+  totalDays: number;
+  workedDays: number;
+  remainingDays: number;
+  historicalDaysCount: number;
+  // 平均值
+  averages: {
+    work: number;
+    sleep: number;
+    free: number;
+  };
 }
 
 interface CareerRingProps {
@@ -15,6 +32,7 @@ interface CareerRingProps {
     work: string;
     sleep: string;
     free: string;
+    unspent: string; // 未度过时间的颜色
   };
   size?: number;
   timeUnit?: 'years' | 'months' | 'days' | 'hours';
@@ -28,7 +46,8 @@ export const CareerRing: React.FC<CareerRingProps> = ({
   colors = {
     work: '#FF6B6B',    // 红色 - 工作
     sleep: '#9B59B6',   // 紫色 - 睡眠
-    free: '#2ECC71'     // 绿色 - 自由时间
+    free: '#2ECC71',    // 绿色 - 自由时间
+    unspent: '#E5E5E5'  // 灰色 - 未度过时间
   },
   size = defaultSize,
   timeUnit = 'years'
@@ -38,12 +57,10 @@ export const CareerRing: React.FC<CareerRingProps> = ({
   const strokeWidth = size * 0.08;
 
   // 计算角度（从12点钟方向开始，顺时针）
-  const workAngle = (timeData.totalWork.percentage / 100) * 360;
-  const sleepAngle = (timeData.totalSleep.percentage / 100) * 360;
-  const freeAngle = (timeData.totalFree.percentage / 100) * 360;
-
-  // 计算当前进度箭头位置
-  const progressAngle = (timeData.currentProgress / 100) * 360;
+  const spentWorkAngle = (timeData.spentWork.percentage / 100) * 360;
+  const spentSleepAngle = (timeData.spentSleep.percentage / 100) * 360;
+  const spentFreeAngle = (timeData.spentFree.percentage / 100) * 360;
+  const unspentAngle = (timeData.unspentTime.percentage / 100) * 360;
 
   // 计算路径
   const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
@@ -68,20 +85,26 @@ export const CareerRing: React.FC<CareerRingProps> = ({
   // 计算各段的路径
   let currentAngle = 0;
   
-  const workPath = describeArc(center, center, radius, currentAngle, currentAngle + workAngle);
-  currentAngle += workAngle;
+  const spentWorkPath = spentWorkAngle > 0 ? describeArc(center, center, radius, currentAngle, currentAngle + spentWorkAngle) : '';
+  currentAngle += spentWorkAngle;
   
-  const sleepPath = describeArc(center, center, radius, currentAngle, currentAngle + sleepAngle);
-  currentAngle += sleepAngle;
+  const spentSleepPath = spentSleepAngle > 0 ? describeArc(center, center, radius, currentAngle, currentAngle + spentSleepAngle) : '';
+  currentAngle += spentSleepAngle;
   
-  const freePath = describeArc(center, center, radius, currentAngle, currentAngle + freeAngle);
-
-  // 计算进度箭头位置
-  const arrowRadius = radius + strokeWidth / 2 + 15;
-  const arrowPos = polarToCartesian(center, center, arrowRadius, progressAngle);
+  const spentFreePath = spentFreeAngle > 0 ? describeArc(center, center, radius, currentAngle, currentAngle + spentFreeAngle) : '';
+  currentAngle += spentFreeAngle;
+  
+  const unspentPath = unspentAngle > 0 ? describeArc(center, center, radius, currentAngle, currentAngle + unspentAngle) : '';
 
   // 格式化时间显示
   const formatTime = (hours: number) => {
+    // 添加调试信息
+    console.log('formatTime called with hours:', hours, 'timeUnit:', timeUnit);
+    
+    if (hours === 0 || isNaN(hours)) {
+      return '0';
+    }
+    
     switch (timeUnit) {
       case 'years':
         return `${(hours / (24 * 365)).toFixed(1)}年`;
@@ -97,86 +120,117 @@ export const CareerRing: React.FC<CareerRingProps> = ({
   };
 
   return (
-    <View style={styles.container}>
-      <Svg width={size} height={size}>
-        <G>
-          {/* 背景圆环 */}
-          <Circle
-            cx={center}
-            cy={center}
-            r={radius}
-            stroke="#E5E5E5"
-            strokeWidth={strokeWidth}
-            fill="none"
-          />
-          
-          {/* 工作时间弧 */}
-          {workAngle > 0 && (
-            <Path
-              d={workPath}
-              stroke={colors.work}
+    <View style={styles.outerContainer}>
+      <View style={styles.container}>
+        <Svg width={size} height={size}>
+          <G>
+            {/* 背景圆环 */}
+            <Circle
+              cx={center}
+              cy={center}
+              r={radius}
+              stroke="#E5E5E5"
               strokeWidth={strokeWidth}
               fill="none"
-              strokeLinecap="round"
             />
-          )}
-          
-          {/* 睡眠时间弧 */}
-          {sleepAngle > 0 && (
-            <Path
-              d={sleepPath}
-              stroke={colors.sleep}
-              strokeWidth={strokeWidth}
-              fill="none"
-              strokeLinecap="round"
-            />
-          )}
-          
-          {/* 自由时间弧 */}
-          {freeAngle > 0 && (
-            <Path
-              d={freePath}
-              stroke={colors.free}
-              strokeWidth={strokeWidth}
-              fill="none"
-              strokeLinecap="round"
-            />
-          )}
-          
-          {/* 进度箭头 */}
-          <Polygon
-            points={`${arrowPos.x},${arrowPos.y - 8} ${arrowPos.x - 6},${arrowPos.y + 4} ${arrowPos.x + 6},${arrowPos.y + 4}`}
-            fill="#333"
-            transform={`rotate(${progressAngle} ${arrowPos.x} ${arrowPos.y})`}
-          />
-        </G>
-      </Svg>
+            
+            {/* 已花费的工作时间弧 */}
+            {spentWorkAngle > 0 && (
+              <Path
+                d={spentWorkPath}
+                stroke={colors.work}
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+              />
+            )}
+            
+            {/* 已花费的睡眠时间弧 */}
+            {spentSleepAngle > 0 && (
+              <Path
+                d={spentSleepPath}
+                stroke={colors.sleep}
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+              />
+            )}
+            
+            {/* 已花费的自由时间弧 */}
+            {spentFreeAngle > 0 && (
+              <Path
+                d={spentFreePath}
+                stroke={colors.free}
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+              />
+            )}
+            
+            {/* 未度过的时间弧 */}
+            {unspentAngle > 0 && (
+              <Path
+                d={unspentPath}
+                stroke={colors.unspent}
+                strokeWidth={strokeWidth}
+                fill="none"
+                strokeLinecap="round"
+              />
+            )}
+          </G>
+        </Svg>
+        
+        {/* 中心数据显示 - 已花费时间汇总 */}
+        <View style={styles.centerData}>
+          <Text style={styles.centerTitle}>已花费时间</Text>
+          <Text style={styles.progressText}>基于{timeData.historicalDaysCount}天记录平均值</Text>
+          <View style={styles.dataRow}>
+            <View style={[styles.colorDot, { backgroundColor: colors.work }]} />
+            <Text style={styles.dataLabel}>工作</Text>
+            <Text style={styles.dataValue}>{formatTime(timeData.spentWork.hours)}</Text>
+          </View>
+          <View style={styles.dataRow}>
+            <View style={[styles.colorDot, { backgroundColor: colors.sleep }]} />
+            <Text style={styles.dataLabel}>睡眠</Text>
+            <Text style={styles.dataValue}>{formatTime(timeData.spentSleep.hours)}</Text>
+          </View>
+          <View style={styles.dataRow}>
+            <View style={[styles.colorDot, { backgroundColor: colors.free }]} />
+            <Text style={styles.dataLabel}>自由</Text>
+            <Text style={styles.dataValue}>{formatTime(timeData.spentFree.hours)}</Text>
+          </View>
+        </View>
+      </View>
       
-      {/* 中心数据显示 */}
-      <View style={styles.centerData}>
-        <Text style={styles.centerTitle}>职业生涯</Text>
-        <Text style={styles.progressText}>{timeData.currentProgress.toFixed(1)}% 完成</Text>
-        <View style={styles.dataRow}>
-          <View style={[styles.colorDot, { backgroundColor: colors.work }]} />
-          <Text style={styles.dataLabel}>工作</Text>
-          <Text style={styles.dataValue}>{formatTime(timeData.totalWork.hours)}</Text>
+      {/* 圆环下方 - 剩余时间预估 */}
+      <View style={styles.remainingTimeContainer}>
+        <Text style={styles.remainingTitle}>剩余时间预估</Text>
+        <Text style={styles.remainingSubtitle}>基于{timeData.historicalDaysCount}天历史数据平均值</Text>
+        <View style={styles.remainingStatsContainer}>
+          <View style={styles.remainingStatItem}>
+            <Text style={styles.remainingStatValue}>{formatTime(timeData.remainingWork.hours)}</Text>
+            <Text style={styles.remainingStatLabel}>工作</Text>
+          </View>
+          <View style={styles.remainingStatItem}>
+            <Text style={styles.remainingStatValue}>{formatTime(timeData.remainingSleep.hours)}</Text>
+            <Text style={styles.remainingStatLabel}>睡眠</Text>
+          </View>
+          <View style={styles.remainingStatItem}>
+            <Text style={styles.remainingStatValue}>{formatTime(timeData.remainingFree.hours)}</Text>
+            <Text style={styles.remainingStatLabel}>自由</Text>
+          </View>
         </View>
-        <View style={styles.dataRow}>
-          <View style={[styles.colorDot, { backgroundColor: colors.sleep }]} />
-          <Text style={styles.dataLabel}>睡眠</Text>
-          <Text style={styles.dataValue}>{formatTime(timeData.totalSleep.hours)}</Text>
-        </View>
-        <View style={styles.dataRow}>
-          <View style={[styles.colorDot, { backgroundColor: colors.free }]} />
-          <Text style={styles.dataLabel}>自由</Text>
-          <Text style={styles.dataValue}>{formatTime(timeData.totalFree.hours)}</Text>
-        </View>
+        <Text style={styles.remainingDaysText}>剩余{timeData.remainingDays}天</Text>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -219,5 +273,56 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#333',
+  },
+  remainingTimeContainer: {
+    marginTop: 30,
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    width: '100%',
+  },
+  remainingTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  remainingSubtitle: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  remainingStatsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 15,
+  },
+  remainingStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  remainingStatValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#007AFF',
+    marginBottom: 4,
+  },
+  remainingStatLabel: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  remainingDaysText: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
   },
 });
