@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -67,7 +67,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		3B2FD1B52F3445F700ECF370 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		3B2FD1B52F3445F700ECF370 /* Exceptions for "RetirementCountdownWidget" folder in "RetirementCountdownWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -79,7 +79,18 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		3B2FD1A62F3445F400ECF370 /* RetirementCountdownWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (3B2FD1B52F3445F700ECF370 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = RetirementCountdownWidget; sourceTree = "<group>"; };
+		3B2FD1A62F3445F400ECF370 /* RetirementCountdownWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				3B2FD1B52F3445F700ECF370 /* Exceptions for "RetirementCountdownWidget" folder in "RetirementCountdownWidgetExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = RetirementCountdownWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -240,8 +251,6 @@
 				3B2FD1A62F3445F400ECF370 /* RetirementCountdownWidget */,
 			);
 			name = RetirementCountdownWidgetExtension;
-			packageProductDependencies = (
-			);
 			productName = RetirementCountdownWidgetExtension;
 			productReference = 3B2FD1A12F3445F400ECF370 /* RetirementCountdownWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -554,6 +563,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.retirementcountdown.app.RetirementCountdownWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -602,6 +612,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.0;
 				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.retirementcountdown.app.RetirementCountdownWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

@@ -1,7 +1,0 @@
-** BUILD FAILED **
-
-
-The following build commands failed:
-	ValidateEmbeddedBinary /Users/mengji/Library/Developer/Xcode/DerivedData/app-bwlohlptlalcxzfodprrezjfqdmz/Build/Products/Debug-iphonesimulator/app.app/PlugIns/RetirementCountdownWidgetExtension.appex (in target 'app' from project 'app')
-	Building workspace app with scheme app and configuration Debug
-(2 failures)
