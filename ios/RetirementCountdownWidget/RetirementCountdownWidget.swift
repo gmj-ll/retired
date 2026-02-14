@@ -1,14 +1,12 @@
 import WidgetKit
 import SwiftUI
+internal import Combine
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
         SimpleEntry(
             date: Date(),
-            name: "用户",
-            timeUntilRetirement: "365",
-            unit: "天",
-            progress: 0.5,
+            retirementDate: Calendar.current.date(byAdding: .year, value: 1, to: Date())!,
             backgroundImageData: nil
         )
     }
@@ -16,10 +14,7 @@ struct Provider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
         let entry = SimpleEntry(
             date: Date(),
-            name: "用户",
-            timeUntilRetirement: "365",
-            unit: "天",
-            progress: 0.5,
+            retirementDate: Calendar.current.date(byAdding: .year, value: 1, to: Date())!,
             backgroundImageData: nil
         )
         completion(entry)
@@ -31,150 +26,244 @@ struct Provider: TimelineProvider {
         let currentDate = Date()
         var entry: SimpleEntry
         
-        // 尝试从 App Groups 读取数据
-        if let sharedDefaults = UserDefaults(suiteName: "group.mengji.retirement.app.2026"),
-           let widgetData = sharedDefaults.dictionary(forKey: "widgetData"),
-           let name = widgetData["name"] as? String,
-           let retirementDateString = widgetData["retirementDate"] as? String,
-           let currentFormat = widgetData["currentFormat"] as? String,
-           let progress = widgetData["progress"] as? Double {
+        print("🔍 Widget getTimeline called at: \(currentDate)")
+        print("🔍 Context: \(context)")
+        
+        if let sharedDefaults = UserDefaults(suiteName: "group.mengji.retirement.app.2026") {
+            print("✅ App Group accessed successfully")
             
-            // 读取背景图片数据
-            var backgroundImageData: Data? = nil
-            if let profileImagePath = widgetData["profileImage"] as? String,
-               !profileImagePath.isEmpty {
-                // 尝试从共享容器读取图片数据
-                backgroundImageData = loadImageData(from: profileImagePath)
-            }
-            
-            let formatter = ISO8601DateFormatter()
-            if let retirementDate = formatter.date(from: retirementDateString) {
-                let timeUntilRetirement = calculateTimeUntilRetirement(from: currentDate, to: retirementDate, format: currentFormat)
-                let unit = getUnitString(for: currentFormat)
-                entry = SimpleEntry(
-                    date: currentDate,
-                    name: name,
-                    timeUntilRetirement: timeUntilRetirement,
-                    unit: unit,
-                    progress: progress,
-                    backgroundImageData: backgroundImageData
-                )
+            if let widgetData = sharedDefaults.dictionary(forKey: "widgetData") {
+                print("📦 Widget data found: \(widgetData)")
+                print("🔑 Widget data keys: \(Array(widgetData.keys))")
+                
+                if let retirementDateString = widgetData["retirementDate"] as? String {
+                    print("📅 Parsing date: \(retirementDateString)")
+                    
+                    var backgroundImageData: Data? = nil
+                    if let profileImagePath = widgetData["profileImage"] as? String,
+                       !profileImagePath.isEmpty {
+                        print("🖼️ Loading background image from: \(profileImagePath)")
+                        backgroundImageData = loadImageData(from: profileImagePath)
+                        print("🖼️ Background image loaded: \(backgroundImageData != nil)")
+                    }
+                    
+                    if let retirementDate = parseDate(from: retirementDateString) {
+                        print("✅ Widget: Date parsed successfully: \(retirementDate)")
+                        
+                        // 检查日期是否在未来
+                        let timeInterval = retirementDate.timeIntervalSince(currentDate)
+                        print("⏰ Time interval: \(timeInterval) seconds")
+                        print("⏰ Time interval in days: \(timeInterval / (24 * 60 * 60))")
+                        
+                        entry = SimpleEntry(
+                            date: currentDate,
+                            retirementDate: retirementDate,
+                            backgroundImageData: backgroundImageData
+                        )
+                        print("✅ Widget: Entry created successfully")
+                    } else {
+                        print("❌ Widget: Failed to parse date: \(retirementDateString)")
+                        // 使用一个未来的默认日期进行测试
+                        let testDate = Calendar.current.date(byAdding: .year, value: 1, to: currentDate) ?? currentDate
+                        entry = SimpleEntry(
+                            date: currentDate,
+                            retirementDate: testDate,
+                            backgroundImageData: backgroundImageData
+                        )
+                        print("🧪 Widget: Using test date: \(testDate)")
+                    }
+                } else {
+                    print("❌ Widget: Missing retirementDate field")
+                    print("❌ Available keys: \(Array(widgetData.keys))")
+                    // 使用测试数据
+                    let testDate = Calendar.current.date(byAdding: .year, value: 1, to: currentDate) ?? currentDate
+                    entry = SimpleEntry(
+                        date: currentDate,
+                        retirementDate: testDate,
+                        backgroundImageData: nil
+                    )
+                    print("🧪 Widget: Using fallback test date: \(testDate)")
+                }
             } else {
+                print("❌ Widget: No widgetData found in App Group")
+                // 检查 App Group 中的所有数据
+                let allKeys = sharedDefaults.dictionaryRepresentation().keys
+                print("📋 All keys in App Group: \(Array(allKeys))")
+                
+                // 使用测试数据
+                let testDate = Calendar.current.date(byAdding: .year, value: 1, to: currentDate) ?? currentDate
                 entry = SimpleEntry(
                     date: currentDate,
-                    name: name,
-                    timeUntilRetirement: "计算错误",
-                    unit: "",
-                    progress: progress,
-                    backgroundImageData: backgroundImageData
+                    retirementDate: testDate,
+                    backgroundImageData: nil
                 )
+                print("🧪 Widget: Using fallback test date: \(testDate)")
             }
         } else {
-            // 默认数据
+            print("❌ CRITICAL: Cannot access App Group 'group.mengji.retirement.app.2026'")
+            print("❌ This indicates App Group configuration issues")
+            
+            // 使用测试数据
+            let testDate = Calendar.current.date(byAdding: .year, value: 1, to: currentDate) ?? currentDate
             entry = SimpleEntry(
                 date: currentDate,
-                name: "用户",
-                timeUntilRetirement: "请打开应用",
-                unit: "",
-                progress: 0.0,
+                retirementDate: testDate,
                 backgroundImageData: nil
             )
+            print("🧪 Widget: Using emergency fallback date: \(testDate)")
         }
         
         entries.append(entry)
         
-        // 设置下次更新时间（默认1小时后）
-        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 1, to: currentDate) ?? Date()
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: currentDate) ?? Date()
         let timeline = Timeline(entries: entries, policy: .after(nextUpdate))
+        print("📅 Widget: Timeline created with next update at: \(nextUpdate)")
         completion(timeline)
     }
     
-    private func loadImageData(from path: String) -> Data? {
-        // 如果是 file:// URL，直接读取
-        if path.hasPrefix("file://") {
-            let url = URL(string: path)
-            return try? Data(contentsOf: url!)
+    private func parseDate(from dateString: String) -> Date? {
+        let formatters: [ISO8601DateFormatter] = [
+            {
+                let f = ISO8601DateFormatter()
+                f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                return f
+            }(),
+            {
+                let f = ISO8601DateFormatter()
+                f.formatOptions = [.withInternetDateTime]
+                return f
+            }(),
+            {
+                let f = ISO8601DateFormatter()
+                f.formatOptions = [.withYear, .withMonth, .withDay, .withTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
+                return f
+            }()
+        ]
+        
+        for formatter in formatters {
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
         }
         
-        // 如果是相对路径，尝试从 Documents 目录读取
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
-        if let documentsURL = documentsPath {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return dateFormatter.date(from: dateString)
+    }
+    
+    private func loadImageData(from path: String) -> Data? {
+        if path.hasPrefix("file://"), let url = URL(string: path) {
+            return try? Data(contentsOf: url)
+        }
+        
+        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.mengji.retirement.app.2026") {
+            let imageURL = containerURL.appendingPathComponent(path)
+            if let data = try? Data(contentsOf: imageURL) {
+                return data
+            }
+        }
+        
+        if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let imageURL = documentsURL.appendingPathComponent(path)
             return try? Data(contentsOf: imageURL)
         }
         
         return nil
     }
-    
-    private func calculateTimeUntilRetirement(from startDate: Date, to endDate: Date, format: String) -> String {
-        let timeInterval = endDate.timeIntervalSince(startDate)
-        
-        // 确保时间间隔为正数
-        guard timeInterval > 0 else {
-            return "0"
-        }
-        
-        switch format {
-        case "years":
-            let years = timeInterval / (365.25 * 24 * 60 * 60)
-            return String(format: "%.1f", max(0, years))
-        case "months":
-            let months = timeInterval / (30.44 * 24 * 60 * 60)
-            return String(format: "%.1f", max(0, months))
-        case "days":
-            let days = timeInterval / (24 * 60 * 60)
-            return String(format: "%.0f", max(0, days))
-        case "hours":
-            let hours = timeInterval / (60 * 60)
-            return String(format: "%.0f", max(0, hours))
-        case "minutes":
-            let minutes = timeInterval / 60
-            return String(format: "%.0f", max(0, minutes))
-        case "seconds":
-            return String(format: "%.0f", max(0, timeInterval))
-        default:
-            let days = timeInterval / (24 * 60 * 60)
-            return String(format: "%.0f", max(0, days))
-        }
-    }
-    
-    private func getUnitString(for format: String) -> String {
-        switch format {
-        case "years": return "年"
-        case "months": return "个月"
-        case "days": return "天"
-        case "hours": return "小时"
-        case "minutes": return "分钟"
-        case "seconds": return "秒"
-        default: return "天"
-        }
-    }
 }
 
 struct SimpleEntry: TimelineEntry {
     let date: Date
-    let name: String
-    let timeUntilRetirement: String
-    let unit: String
-    let progress: Double
+    let retirementDate: Date
     let backgroundImageData: Data?
 }
 
+// MARK: - 倒计时视图（只显示 HH:MM:SS）
+struct CountdownTextView: View {
+    let retirementDate: Date
+    
+    var body: some View {
+        let currentDate = Date()
+        let timeInterval = retirementDate.timeIntervalSince(currentDate)
+        
+        // 添加调试信息
+        let _ = print("⏰ CountdownTextView - Current: \(currentDate)")
+        let _ = print("⏰ CountdownTextView - Retirement: \(retirementDate)")
+        let _ = print("⏰ CountdownTextView - Interval: \(timeInterval) seconds")
+        
+        if timeInterval > 0 {
+            Text(retirementDate, style: .timer)
+                .onAppear {
+                    print("✅ Timer view appeared with valid future date")
+                }
+        } else {
+            Text("已退休")
+                .onAppear {
+                    print("⚠️ Retirement date is in the past or invalid")
+                }
+        }
+    }
+}
+
+
+
+// MARK: - Widget Views
 struct RetirementCountdownWidgetEntryView : View {
     var entry: Provider.Entry
+    @Environment(\.widgetFamily) var family
 
     var body: some View {
+        switch family {
+        case .systemSmall:
+            SmallWidgetView(entry: entry)
+        case .systemMedium:
+            MediumWidgetView(entry: entry)
+        default:
+            // 不支持大尺寸，默认显示中等尺寸
+            MediumWidgetView(entry: entry)
+        }
+    }
+}
+
+// MARK: - Small Widget
+struct SmallWidgetView: View {
+    let entry: SimpleEntry
+    
+    var body: some View {
         ZStack {
-            // 背景层
+            backgroundView
+            
+            VStack(spacing: 12) {
+                Text("退休倒计时 v2.0")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+                
+                CountdownTextView(retirementDate: entry.retirementDate)
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(.yellow)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .containerBackground(for: .widget) {
+            backgroundView
+        }
+    }
+    
+    @ViewBuilder
+    private var backgroundView: some View {
+        ZStack {
             if let imageData = entry.backgroundImageData,
                let uiImage = UIImage(data: imageData) {
-                // 使用用户设置的背景图片
                 Image(uiImage: uiImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .clipped()
             } else {
-                // 默认渐变背景
                 LinearGradient(
                     gradient: Gradient(colors: [
                         Color(red: 0.31, green: 0.67, blue: 0.996),
@@ -184,72 +273,64 @@ struct RetirementCountdownWidgetEntryView : View {
                     endPoint: .bottomTrailing
                 )
             }
-            
-            // 遮罩层（确保文字可读性）
-            Rectangle()
-                .fill(Color.black.opacity(0.4))
-            
-            // 内容层
-            VStack(spacing: 6) {
-                // 问候语
-                Text("你好，\(entry.name)")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white)
-                    .shadow(color: .black, radius: 1, x: 0, y: 1)
-                
-                // 标题
-                Text("距离退休还有")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(.white)
-                    .opacity(0.9)
-                    .shadow(color: .black, radius: 1, x: 0, y: 1)
-                
-                // 倒计时数字
-                Text(entry.timeUntilRetirement)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.yellow)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .shadow(color: .black, radius: 2, x: 0, y: 1)
-                
-                // 单位
-                if !entry.unit.isEmpty {
-                    Text(entry.unit)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.yellow)
-                        .shadow(color: .black, radius: 1, x: 0, y: 1)
-                }
-                
-                // 进度条
-                VStack(spacing: 3) {
-                    HStack {
-                        Rectangle()
-                            .fill(Color.white.opacity(0.3))
-                            .frame(height: 3)
-                            .overlay(
-                                HStack {
-                                    Rectangle()
-                                        .fill(Color.yellow)
-                                        .frame(width: max(0, min(1.0, entry.progress)) * 120)
-                                    Spacer()
-                                }
-                            )
-                            .frame(width: 120)
-                            .cornerRadius(1.5)
-                    }
-                    
-                    Text("工作生涯 \(String(format: "%.1f", max(0, min(100, entry.progress * 100))))% 完成")
-                        .font(.system(size: 9, weight: .regular))
-                        .foregroundColor(.white)
-                        .opacity(0.9)
-                        .shadow(color: .black, radius: 1, x: 0, y: 1)
-                }
-            }
-            .padding(12)
+            Rectangle().fill(Color.black.opacity(0.4))
         }
     }
 }
 
+// MARK: - Medium Widget
+struct MediumWidgetView: View {
+    let entry: SimpleEntry
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("距离退休还有 v2.0")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(.white)
+                .shadow(color: .black, radius: 1, x: 0, y: 1)
+            
+            CountdownTextView(retirementDate: entry.retirementDate)
+                .font(.system(size: 48, weight: .bold))
+                .foregroundColor(.yellow)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+                .shadow(color: .black, radius: 2, x: 0, y: 1)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerBackground(for: .widget) {
+            backgroundView
+        }
+    }
+    
+    @ViewBuilder
+    private var backgroundView: some View {
+        ZStack {
+            if let imageData = entry.backgroundImageData,
+               let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.31, green: 0.67, blue: 0.996),
+                        Color(red: 0.0, green: 0.95, blue: 0.996)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+            Rectangle().fill(Color.black.opacity(0.4))
+        }
+    }
+}
+
+
+
+// MARK: - Widget Configuration
 struct RetirementCountdownWidget: Widget {
     let kind: String = "RetirementCountdownWidget"
 
@@ -259,22 +340,28 @@ struct RetirementCountdownWidget: Widget {
         }
         .configurationDisplayName("退休倒计时")
         .description("显示距离退休的剩余时间，支持自定义背景图片")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
 #if DEBUG
 struct RetirementCountdownWidget_Previews: PreviewProvider {
     static var previews: some View {
-        RetirementCountdownWidgetEntryView(entry: SimpleEntry(
-            date: Date(),
-            name: "张三",
-            timeUntilRetirement: "365",
-            unit: "天",
-            progress: 0.65,
-            backgroundImageData: nil
-        ))
-        .previewContext(WidgetPreviewContext(family: .systemMedium))
+        Group {
+            RetirementCountdownWidgetEntryView(entry: SimpleEntry(
+                date: Date(),
+                retirementDate: Calendar.current.date(byAdding: .day, value: 365, to: Date())!,
+                backgroundImageData: nil
+            ))
+            .previewContext(WidgetPreviewContext(family: .systemSmall))
+            
+            RetirementCountdownWidgetEntryView(entry: SimpleEntry(
+                date: Date(),
+                retirementDate: Calendar.current.date(byAdding: .day, value: 365, to: Date())!,
+                backgroundImageData: nil
+            ))
+            .previewContext(WidgetPreviewContext(family: .systemMedium))
+        }
     }
 }
 #endif

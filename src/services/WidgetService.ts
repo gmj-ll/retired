@@ -1,37 +1,32 @@
 import { NativeModules, Platform } from 'react-native';
 import { UserProfile } from '@/types';
-import { TimeAnalysisService } from './TimeAnalysisService';
 
 const { WidgetDataManager } = NativeModules;
 
 export class WidgetService {
   /**
-   * 更新Widget数据
+   * 更新Widget数据（简化版本 - 只传递退休日期和背景图）
    */
-  static async updateWidgetData(
-    profile: UserProfile,
-    currentFormat: string = 'days'
-  ): Promise<void> {
+  static async updateWidgetData(profile: UserProfile): Promise<void> {
     if (Platform.OS !== 'ios' || !WidgetDataManager) {
       console.log('Widget service not available on this platform');
       return;
     }
 
     try {
-      const progress = TimeAnalysisService.calculateRetirementProgress(profile);
-      
+      // 简化的数据结构 - 只传递必要数据
       const widgetData = {
-        name: profile.name,
         retirementDate: profile.retirementDate.toISOString(),
         profileImage: profile.profileImage || '',
-        currentFormat: currentFormat,
-        progress: progress,
       };
 
+      console.log('📤 Sending simplified widget data:', JSON.stringify(widgetData, null, 2));
+      console.log('📅 Retirement date:', profile.retirementDate.toISOString());
+      
       await WidgetDataManager.updateWidgetData(widgetData);
-      console.log('Widget data updated successfully');
+      console.log('✅ Widget data updated successfully');
     } catch (error) {
-      console.error('Failed to update widget data:', error);
+      console.error('❌ Failed to update widget data:', error);
     }
   }
 

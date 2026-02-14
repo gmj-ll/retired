@@ -39,9 +39,11 @@ export const HomeScreen: React.FC = () => {
     ImagePickerService.showImagePickerOptions(async (uri: string) => {
       try {
         await updateProfile({ profileImage: uri });
-        // 更新Widget数据
+        // 使用更新后的 profile 数据
         if (profile) {
-          await WidgetService.updateWidgetData(profile, currentFormat);
+          const updatedProfile = { ...profile, profileImage: uri };
+          console.log('🖼️ Background updated, refreshing widget...');
+          await WidgetService.updateWidgetData(updatedProfile);
         }
       } catch (error) {
         console.error('更新背景图片失败:', error);
@@ -50,21 +52,21 @@ export const HomeScreen: React.FC = () => {
     });
   };
 
-  // 处理格式切换
+  // 处理格式切换（现在只更新本地状态，不影响Widget）
   const handleFormatChange = async (newFormat: TimeFormat) => {
+    console.log(`⏱️ Format changed from ${currentFormat} to ${newFormat}`);
     setCurrentFormat(newFormat);
-    // 更新Widget数据
-    if (profile) {
-      await WidgetService.updateWidgetData(profile, newFormat);
-    }
+    // Widget 现在只显示 HH:MM:SS 格式，不需要传递格式信息
   };
 
-  // 初始化Widget数据
+  // 当 profile 变化时更新 Widget（只在初始化和背景图更新时）
   useEffect(() => {
     if (profile && WidgetService.isWidgetAvailable()) {
-      WidgetService.updateWidgetData(profile, currentFormat);
+      console.log('🔄 Profile changed, updating widget...');
+      console.log('Profile name:', profile.name);
+      WidgetService.updateWidgetData(profile);
     }
-  }, [profile]);
+  }, [profile]); // 移除 currentFormat 依赖，因为 Widget 不再需要格式信息
 
   // 更新倒计时
   useEffect(() => {
@@ -243,7 +245,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    paddingBottom: 120, // 为浮动 TabBar 留出空间，考虑安全区域
+    paddingBottom: 120,
   },
   loadingContainer: {
     flex: 1,
@@ -279,9 +281,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    // iOS小组件标准尺寸 - 中等尺寸 (2x1)
-    width: width - 40, // 屏幕宽度减去左右边距
-    height: (width - 40) * 0.47, // 宽高比约为 2.13:1，接近iOS中等组件比例
+    width: width - 40,
+    height: (width - 40) * 0.47,
   },
   countdownBackground: {
     width: '100%',
@@ -302,12 +303,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     paddingVertical: 20,
     paddingHorizontal: 25,
-    borderRadius: 20, // 与背景图圆角保持一致
+    borderRadius: 20,
     alignItems: 'center',
-    width: '100%', // 占满整个背景容器
-    height: '100%', // 占满整个背景容器高度
-    justifyContent: 'center', // 垂直居中内容
-    position: 'absolute', // 绝对定位覆盖整个背景
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    position: 'absolute',
     top: 0,
     left: 0,
   },
@@ -341,7 +342,7 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     width: width * 0.6,
-    height: 30, // 固定高度防止抖动
+    height: 30,
     justifyContent: 'center',
   },
   progressBar: {
@@ -359,8 +360,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     fontSize: 12,
-    height: 16, // 固定高度防止抖动
-    lineHeight: 16, // 设置行高与高度一致
+    height: 16,
+    lineHeight: 16,
   },
   cardHint: {
     fontSize: 12,
